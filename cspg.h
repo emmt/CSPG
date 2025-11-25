@@ -111,8 +111,6 @@ struct cspg_context_ {
     double* gnew;
 
     double* d;
-    double* s;
-    double* y;
 
     double lmin;
     double lmax;

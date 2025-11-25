@@ -66,7 +66,7 @@ static double maximum(long n, const double x[])
     return xmax;
 }
 
-/* Compute the scalar product of two vectors. */
+/* Compute the scalar product ⟨x,y⟩ of the vectors `x` and `y` if length `n`. */
 static double inner(long n, const double x[], const double y[])
 {
     double s = 0.0;
@@ -179,16 +179,6 @@ cspg_context* cspg_context_create(long m, long n)
         cspg_context_destroy(ctx);
         return NULL;
     }
-    ctx->s = (double*)malloc(n*sizeof(double)); // TODO not needed
-    if (ctx->s == NULL) {
-        cspg_context_destroy(ctx);
-        return NULL;
-    }
-    ctx->y = (double*)malloc(n*sizeof(double)); // TODO not needed
-    if (ctx->y == NULL) {
-        cspg_context_destroy(ctx);
-        return NULL;
-    }
     for (long i = 0; i < m; ++i) {
         ctx->lastfv[i] = -INFINITY;
     }
@@ -232,14 +222,6 @@ void cspg_context_destroy(cspg_context* ctx)
     if (ctx->xnew != NULL) {
         free(ctx->xnew);
         ctx->xnew =  NULL;
-    }
-    if (ctx->s != NULL) {
-        free(ctx->s);
-        ctx->s =  NULL;
-    }
-    if (ctx->y != NULL) {
-        free(ctx->y);
-        ctx->y =  NULL;
     }
     free(ctx);
 }
@@ -422,15 +404,15 @@ void cspg_solve(cspg_context* ctx)
            goto done;
        }
 
-       /* Compute s = xnew - x and y = gnew - g, <s,s>, <s,y>, the
-          continuous-projected-gradient and its sup-norm */
+       /* Compute sts = ⟨s,s⟩, sty = ⟨s,y⟩ with s = xnew - x and y = gnew - g. Compute the
+          continuous-projected-gradient and its sup-norm. */
        double sts = 0.0;
        double sty = 0.0;
        for (long i = 0; i < n; ++i) {
-           ctx->s[i]  = ctx->xnew[i] - ctx->x[i];
-           ctx->y[i]  = ctx->gnew[i] - ctx->g[i];
-           sts  += ctx->s[i]*ctx->s[i];
-           sty  += ctx->s[i]*ctx->y[i];
+           double s_i  = ctx->xnew[i] - ctx->x[i];
+           double y_i  = ctx->gnew[i] - ctx->g[i];
+           sts  += s_i*s_i;
+           sty  += s_i*y_i;
            ctx->x[i]  = ctx->xnew[i];
            ctx->g[i]  = ctx->gnew[i];
            ctx->gp[i] = ctx->x[i] - ctx->g[i];

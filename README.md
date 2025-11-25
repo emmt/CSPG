@@ -31,3 +31,5 @@ Improvements of this implementation:
 * Possible rounding-errors in the first line-search trial are avoided which ensures that
   the variables are always feasible when the objective function and its gradient are
   computed.
+
+* Minimal resources are allocated (e.g., no needs to allocate vectors `s` and `y`).
