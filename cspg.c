@@ -405,17 +405,11 @@ void cspg_solve(cspg_context* ctx)
        /* Iteration */
        ++ctx->iter;
 
-       /* Compute search direction TODO this is also the first trial */
-       step(ctx->n, ctx->d, ctx->x, -ctx->lambda, ctx->g);
-       if (compute_projection(ctx, ctx->d) != 0) {
+       /* Compute first trial for line-search and call non-monotone line-search method. */
+       step(ctx->n, ctx->xnew, ctx->x, -ctx->lambda, ctx->g);
+       if (compute_projection(ctx, ctx->xnew) != 0) {
            goto done;
        }
-       for (long i = 0; i < n; ++i) {
-           ctx->d[i] -= ctx->x[i];
-       }
-
-       /* Perform safeguarded quadratic interpolation along the
-          spectral continuous projected gradient */
        linesearch(ctx);
        if (ctx->status != 0) goto done;
 
@@ -517,15 +511,32 @@ void cspg_solve(cspg_context* ctx)
 /* Nonmonotone line search with safeguarded quadratic interpolation */
 static void linesearch(cspg_context* ctx)
 {
-    double fmax = maximum(ctx->m, ctx->lastfv);
-    double gtd = inner(ctx->n, ctx->g, ctx->d);
-    ctx->alpha = 1.0; // TODO do not re-compute initial step
-    step(ctx->n, ctx->xnew, ctx->x, ctx->alpha, ctx->d);
-    if (compute_objective(ctx, ctx->xnew, &ctx->fnew) != 0) {
-        return;
+    /* Compute the search direction given the feasible variables `x` at the start of
+       the line-search and first feasible variables to try in `xnew`. */
+    long n = ctx->n;
+    for (long i = 0; i < n; ++i) {
+        ctx->d[i] = ctx->xnew[i] - ctx->x[i];
     }
-    while (ctx->fnew > fmax + ctx->gamma*ctx->alpha*gtd && ctx->fcnt < ctx->maxfc) {
-        /* Safeguarded quadratic interpolation */
+    /* Compute the parameters of the Armijo's stopping criterion. */
+    double gtd = inner(ctx->n, ctx->g, ctx->d);
+    double fmax = maximum(ctx->m, ctx->lastfv);
+    /* Adjust the step length until one of the stopping criteria hold. */
+    ctx->alpha = 1.0;
+    while (1) {
+        /* Evaluate objective function at trial point. */
+        if (compute_objective(ctx, ctx->xnew, &ctx->fnew) != 0) {
+            break;
+        }
+        /* Check for stopping criteria. */
+        if (ctx->fnew <= fmax + ctx->gamma*ctx->alpha*gtd) {
+            ctx->status = 0;
+            break;
+        }
+        if (ctx->fcnt >= ctx->maxfc) {
+            ctx->status = 2;
+            break;
+        }
+        /* Reduce the step length by a safeguarded quadratic interpolation. */
         if (ctx->alpha <= ctx->sigma1) {
             ctx->alpha /= 2.0;
         } else {
@@ -536,17 +547,7 @@ static void linesearch(cspg_context* ctx)
                 atmp = ctx->alpha / 2.0;
             ctx->alpha = atmp;
         }
-
-        /* New trial */
+        /* Next trial */
         step(ctx->n, ctx->xnew, ctx->x, ctx->alpha, ctx->d);
-        if (compute_objective(ctx, ctx->xnew, &ctx->fnew) != 0) {
-            return;
-        }
-    }
-    /* Termination flag TODO put this in the loop test */
-    if (ctx->fnew <= fmax + ctx->gamma*ctx->alpha*gtd) {
-        ctx->status = 0;
-    } else if (ctx->fcnt >= ctx->maxfc) {
-        ctx->status = 2;
     }
 }

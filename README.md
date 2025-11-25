@@ -27,3 +27,7 @@ Improvements of this implementation:
 
 * The context is instantiated with default parameters reflecting the original algorithm but
   may be changed without recompiling.
+
+* Possible rounding-errors in the first line-search trial are avoided which ensures that
+  the variables are always feasible when the objective function and its gradient are
+  computed.
