@@ -346,11 +346,6 @@ void cspg_solve(cspg_context* ctx)
         fputs(" Entry to SPG.\n", stdout);
     }
 
-   /* for the non-monotone line search */
-   for (long i = 0; i < m; ++i) {
-      ctx->lastfv[i] =  -INFINITY; // NOTE was -1.0e+99
-   }
-
    /* Project initial guess */
    if (compute_projection(ctx, ctx->x) != 0) {
        goto done;
@@ -364,8 +359,10 @@ void cspg_solve(cspg_context* ctx)
        goto done;
    }
 
-   /* Store functional value for the non-monotone line search */
-   ctx->lastfv[0] = ctx->f; // TODO just fill
+   /* Store functional value for the non-monotone line search. */
+   for (long i = 0; i < m; ++i) {
+      ctx->lastfv[i] = ctx->f;
+   }
 
    /* Compute continuous-project-gradient and its sup-norm */
    if (project_gradient(ctx) != 0) {
