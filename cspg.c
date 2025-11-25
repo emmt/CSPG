@@ -430,10 +430,10 @@ void cspg_solve(cspg_context* ctx)
        }
 
        /* Spectral steplength */
-       if (sty <= 0.0) {// TODO NaN?
-           ctx->lambda = ctx->lmax;
-       } else {
+       if (sty > 0.0) {
            ctx->lambda = max(ctx->lmin, min(sts/sty, ctx->lmax));
+       } else {
+           ctx->lambda = ctx->lmax;
        }
 
        /* Best solution and functional value */
@@ -527,9 +527,11 @@ static void linesearch(cspg_context* ctx)
             double num = -gtd*ctx->alpha*ctx->alpha;
             double den = 2.0*(ctx->fnew - ctx->f - ctx->alpha*gtd);
             double atmp = num/den;
-            if (atmp < ctx->sigma1 || atmp > ctx->sigma2*ctx->alpha) // TODO div. by 0, NAN?
-                atmp = ctx->alpha / 2.0;
-            ctx->alpha = atmp;
+            if (atmp >= ctx->sigma1 && atmp <= ctx->sigma2*ctx->alpha) {
+                ctx->alpha = atmp;
+            } else {
+                ctx->alpha /= 2.0;
+            }
         }
         /* Next trial */
         step(ctx->n, ctx->xnew, ctx->x, ctx->alpha, ctx->d);
