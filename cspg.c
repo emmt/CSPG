@@ -327,7 +327,12 @@ void cspg_solve(cspg_context* ctx)
     long m = ctx->m;
     long n = ctx->n;
 
-    ctx->status = 0;
+    /* Reset counters and state. */
+    ctx->fcnt = 0;
+    ctx->gcnt = 0;
+    ctx->pcnt = 0;
+    ctx->iter = 0;
+    ctx->status = CSPG_SEARCHING;
     ctx->inform = 0;
 
     /* Print problem information */
@@ -346,12 +351,11 @@ void cspg_solve(cspg_context* ctx)
         fputs(" Entry to SPG.\n", stdout);
     }
 
-   /* Project initial guess */
+   /* Project initial guess and compute function and gradient at this initial feasible
+      point. */
    if (compute_projection(ctx, ctx->x) != 0) {
        goto done;
    }
-
-   /* Compute function and gradient at the initial point */
    if (compute_objective(ctx, ctx->x, &ctx->f) != 0) {
        goto done;
    }
@@ -364,37 +368,46 @@ void cspg_solve(cspg_context* ctx)
       ctx->lastfv[i] = ctx->f;
    }
 
-   /* Compute continuous-project-gradient and its sup-norm */
-   if (project_gradient(ctx) != 0) {
-       goto done;
-   }
+   while (1) {
+       /* Compute continuous-project-gradient and its sup-norm */
+       if (project_gradient(ctx) != 0) {
+           goto done;
+       }
 
-   /* Initial steplength */
+       /* Store best solution and functional value. */
+       if (ctx->iter < 1 || ctx->f < ctx->fbest) {
+           ctx->fbest = ctx->f;
+           copy(ctx->n, ctx->xbest, ctx->x);
+       }
+
+       /* Check stopping criteria. */
+       if (ctx->gpsupn <= 0.0 || ctx->gpsupn <= ctx->epsopt || isnan(ctx->gpsupn)) {
+           ctx->status = (ctx->gpsupn >= 0.0 ? CSPG_CONVERGENCE : CSPG_VALUE_ERROR);
+       } else if (ctx->iter >= ctx->maxit) {
+           ctx->status = CSPG_TOO_MANY_ITERATIONS;
+       } else if (ctx->fcnt >= ctx->maxfc) {
+           ctx->status = CSPG_TOO_MANY_EVALUATIONS;
+       }
+
+       /* Print iteration information. */
+       if (ctx->obsv != NULL) {
+           ctx->obsv(ctx, ctx->obsv_data);
+       }
+
+       /* Stop algorithm if requested. */
+       if (ctx->status != CSPG_SEARCHING) {
+           break;
+       }
+
+       if (ctx->iter < 1) {
+           /* Initial step-length, we know that the sup-norm of the projected gradient
+              is strictly positive. */
    if (ctx->gpsupn > 0.0) {
        ctx->lambda = min(ctx->lmax, max(ctx->lmin, 1.0/ctx->gpsupn));
    } else {
        ctx->lambda = 0.0; // TODO convergence?
    }
-
-   /* Initiate best solution and functional value */
-   ctx->fbest = ctx->f;
-   copy(ctx->n, ctx->xbest, ctx->x);
-
-   /* Print initial information */
-   if (ctx->obsv != NULL) {
-       ctx->obsv(ctx, ctx->obsv_data);
-       if (ctx->status != 0) {
-           goto done;
        }
-   }
-
-   /* ==================================================================
-      Main loop
-      ================================================================== */
-   while (ctx->gpsupn > ctx->epsopt && ctx->iter < ctx->maxit && ctx->fcnt < ctx->maxfc) {
-
-       /* Iteration */
-       ++ctx->iter;
 
        /* Compute first trial for line-search and call non-monotone line-search method. */
        step(ctx->n, ctx->xnew, ctx->x, -ctx->lambda, ctx->g);
@@ -435,20 +448,11 @@ void cspg_solve(cspg_context* ctx)
        } else {
            ctx->lambda = ctx->lmax;
        }
+       /* Iteration */
+       ++ctx->iter;
 
-       /* Best solution and functional value */
-       if (ctx->f < ctx->fbest) {
-           ctx->fbest = ctx->f;
-           copy(ctx->n, ctx->xbest, ctx->x);
-       }
 
-       /* Print iteration information */
-       if (ctx->obsv != NULL) {
-           ctx->obsv(ctx, ctx->obsv_data);
-           if (ctx->status != 0) {
-               goto done;
-           }
-       }
+
    }
 
    /* ==================================================================

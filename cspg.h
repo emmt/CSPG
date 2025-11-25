@@ -12,6 +12,18 @@
 #ifndef CSPG_H_
 #define CSPG_H_ 1
 
+typedef enum {
+    CSPG_PROJ_ERROR           = -4, /* Error in projection callback */
+    CSPG_GRAD_ERROR           = -3, /* Error in gradient callback */
+    CSPG_FUNC_ERROR           = -2, /* Error in objective function callback */
+    CSPG_VALUE_ERROR          = -1, /* Unexpected value */
+    CSPG_SEARCHING            =  0, /* Work in progress */
+    CSPG_CONVERGENCE          =  1, /* Convergence in the sup-norm of the projected gradient */
+    CSPG_TOO_MANY_ITERATIONS  =  2, /* Maximum number of iterations exceeded */
+    CSPG_TOO_MANY_EVALUATIONS =  3, /* Maximum number of function evaluations exceeded */
+    CSPG_ROUNDING_ERRORS      =  4, /* Rounding errors prevent progress */
+} cspg_status;
+
 /**
  * Structure storing all parameters, work-spaces, and results of the SPG algorithm.
  *
@@ -127,7 +139,7 @@ struct cspg_context_ {
     long fcnt;
     long gcnt;
     long pcnt;
-    int status; // algorithm status
+    cspg_status status; // algorithm status
     int inform; // code returned by user defined function (func, grad, or proj)
 };
 
@@ -241,15 +253,21 @@ extern void cspg_solve(cspg_context* ctx);
  *
  * @param pcnt           If non-`NULL`, address to store the number of projections.
  *
- * @param status         If non-`NULL`, address to store the reason for stopping: `0` if
- *                       convergence criterion holds, `1` if the maximum number of
- *                       iterations has been reached, `2` if the maximum number of
- *                       functional evaluations has been reached, `-90` if an error occurred
- *                       in `func`, `-91` if an error occurred in `grad`, and `-92` if an
- *                       error occurred in `proj`.
+ * @param status         If non-`NULL`, address to store the reason for stopping:
+ *                       `CSPG_CONVERGENCE` if convergence criterion holds,
+ *                       `CSPG_TOO_MANY_ITERATIONS` if the maximum number of iterations has
+ *                       been reached, `CSPG_TOO_MANY_ITERATIONS` if the maximum number of
+ *                       functional evaluations has been reached, `CSPG_ROUNDING_ERRORS` if
+ *                       rounding errors prevent progress, `CSPG_VALUE_ERROR` if an
+ *                       unexpected value is obtained in the computations, `CSPG_FUNC_ERROR`
+ *                       if an error occurred in `func`, `CSPG_GRAD_ERROR` if an error
+ *                       occurred in `grad`, and `CSPG_PROJ_ERROR` if an error occurred in
+ *                       `proj`.
  *
  * @param inform         If non-`NULL`, address to store the error code reported by one of
- *                       the callbacks: `func`, `grad`, or `proj`.
+ *                       the callbacks: `func`, `grad`, or `proj` depending on whether
+ *                       `status` is `CSPG_FUNC_ERROR`, `CSPG_GRAD_ERROR`, or
+ *                       `CSPG_PROJ_ERROR`.
  */
 extern void cspg(cspg_objective* func,
                  void* func_data,
