@@ -120,6 +120,28 @@ static int compute_projection(cspg_context* ctx, double x[])
    return 0;
 }
 
+/* Compute the continuous-project-gradient and its sup-norm. */
+static int project_gradient(cspg_context* ctx)
+{
+    long n = ctx->n;
+    const double* x = ctx->x;
+    const double* g = ctx->g;
+    double* gp = ctx->gp;
+    for (long i = 0; i < n; ++i) {
+        gp[i] = x[i] - g[i];
+    }
+    if (compute_projection(ctx, gp) != 0) {
+        return -1;
+    }
+    double nrm = 0.0;
+    for (long i = 0; i < n; ++i) {
+        gp[i] -= x[i];
+        nrm = max(nrm, fabs(gp[i]));
+    }
+    ctx->gpsupn = nrm;
+    return 0;
+}
+
 /* Simple observer that can be used to print iterates. */
 static void print_iter(cspg_context* ctx, void* data)
 {
@@ -304,7 +326,6 @@ void cspg_solve(cspg_context* ctx)
 {
     long m = ctx->m;
     long n = ctx->n;
-    double nrm;
 
     ctx->status = 0;
     ctx->inform = 0;
@@ -347,18 +368,9 @@ void cspg_solve(cspg_context* ctx)
    ctx->lastfv[0] = ctx->f; // TODO just fill
 
    /* Compute continuous-project-gradient and its sup-norm */
-   for (long i = 0; i < n; ++i) {
-      ctx->gp[i] = ctx->x[i] - ctx->g[i];
-   }
-   if (compute_projection(ctx, ctx->gp) != 0) {
+   if (project_gradient(ctx) != 0) {
        goto done;
    }
-   nrm = 0.0;
-   for (long i = 0; i < n; ++i) {
-      ctx->gp[i] -= ctx->x[i];
-      nrm = max(nrm, fabs(ctx->gp[i]));
-   }
-   ctx->gpsupn = nrm;
 
    /* Initial steplength */
    if (ctx->gpsupn > 0.0) {
@@ -415,17 +427,10 @@ void cspg_solve(cspg_context* ctx)
            sty  += s_i*y_i;
            ctx->x[i]  = ctx->xnew[i];
            ctx->g[i]  = ctx->gnew[i];
-           ctx->gp[i] = ctx->x[i] - ctx->g[i];
        }
-       if (compute_projection(ctx, ctx->gp) != 0) {
+       if (project_gradient(ctx) != 0) {
            goto done;
        }
-       nrm = 0.0;
-       for (long i = 0; i < n; ++i) {
-           ctx->gp[i] -= ctx->x[i];
-           nrm = max(nrm, fabs(ctx->gp[i]));
-       }
-       ctx->gpsupn = nrm;
 
        /* Spectral steplength */
        if (sty <= 0.0) {// TODO NaN?
