@@ -112,8 +112,8 @@ struct cspg_context_ {
     double  gpsupn; ///< Sup-norm of projected gradient
 
     // Candidate solution
-    double* xbest; ///< Best solution
-    double  fbest; ///< Objective function at best solution
+    double* xbest; ///< Best point
+    double  fbest; ///< Objective function at best point
 
     // New iterate found by the line-search
     double* xnew;  ///< Trial point
@@ -131,12 +131,11 @@ struct cspg_context_ {
     double  sigma2; ///< Upper relative threshold for alpha
 
     // Stopping criteria
+    double epsopt; ///< Threshold for the sup-norm of the projected gradient
     long   maxit;  ///< Maximum number of iterations
     long   maxfc;  ///< Maximum number of functional evaluations
-    double epsopt; ///< Threshold for the sup-norm of the projected gradient
 
     // Counters
-    int  verb;
     long iter; ///< Number of iterations
     long fcnt; ///< Number of objective function calls
     long gcnt; ///< Number of gradient calls
@@ -152,9 +151,10 @@ struct cspg_context_ {
     cspg_observer*   obsv;      ///< Observer
     void*            obsv_data; ///< Anything needed by the observer
 
-    // Algorithm status
+    // Miscellaneous
     cspg_status status; ///< Algorithm status
-    int inform;         ///< Code returned by user defined function (func, grad, or proj)
+    int         inform; ///< Code returned by user defined function (func, grad, or proj)
+    int         verb;   ///< Print summary of run on return
 };
 
 /**
