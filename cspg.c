@@ -331,22 +331,6 @@ void cspg_solve(cspg_context* ctx)
         ctx->lastfv[i] = -INFINITY;
     }
 
-    // Print problem information
-    if (ctx->verb) {
-        fputs("============================================================================\n"
-              " This is the SPECTRAL PROJECTED GRADIENT (SPG) for convex-constrained       \n"
-              " optimization. If you use this code, please, cite:                          \n\n"
-              " E. G. Birgin, J. M. Martinez and M. Raydan, Nonmonotone spectral projected \n"
-              " gradient methods on convex sets, SIAM Journal on Optimization 10, pp.      \n"
-              " 1196-1211, 2000, and                                                       \n\n"
-              " E. G. Birgin, J. M. Martinez and M. Raydan, Algorithm 813: SPG - software  \n"
-              " for convex-constrained optimization, ACM Transactions on Mathematical      \n"
-              " Software 27, pp. 340-349, 2001.                                            \n"
-              "============================================================================\n\n",
-              stdout);
-        fputs(" Entry to SPG.\n", stdout);
-    }
-
     // Project initial guess and compute function and gradient at this initial feasible
     // point.
     if (compute_projection(ctx, ctx->x) != 0) {
@@ -462,38 +446,29 @@ void cspg_solve(cspg_context* ctx)
 
  done:
     if (ctx->iter > 0 && ctx->fbest < ctx->f) {
-        // Copy best point TODO not needed?
+        // Copy best point (needed in case of warm restart).
         ctx->f = ctx->fbest;
         copy(ctx->n, ctx->x, ctx->xbest);
     }
-    // Write statistics
     if (ctx->verb) {
-        printf("\n");
-        printf(" Number of variables                : %ld\n", ctx->n);
-        printf(" Number of iterations               : %ld\n", ctx->iter);
-        printf(" Number of functional evaluations   : %ld\n", ctx->fcnt);
-        printf(" Number of gradient evaluations     : %ld\n", ctx->gcnt);
-        printf(" Number of projections              : %ld\n", ctx->pcnt);
-        printf(" Objective function value           : %e\n",  ctx->fbest);
-        printf(" Sup-norm of the projected gradient : %e\n", ctx->gpsupn);
-    }
-
-    // Termination flag TODO set in loop
-    if (ctx->gpsupn <= ctx->epsopt ) {
-        ctx->status = CSPG_CONVERGENCE;
-        if (ctx->verb) {
-            printf("\n Flag of SPG: Solution was found.\n");
+        // Print summary.
+        printf("\n• Algorithm: Spectral Projected Gradient (SPG) method");
+        printf("\n\n• Problem size");
+        printf("\n  Memorized functional values: %7ld", ctx->m);
+        printf("\n  Number of variables:         %7ld", ctx->n);
+        printf("\n\n• Status: %s (%s)", cspg_reason(ctx->status),
+               (ctx->status == CSPG_CONVERGENCE ? "success" : "failure"));
+        if (ctx->fcnt > 0) {
+            printf("\n\n• Candidate solution");
+            printf("\n  Best f(x):                      %.15g", ctx->fbest);
+            printf("\n  Sup-norm of projected gradient: %.4g", ctx->gpsupn);
+            printf("\n\n• Counters");
+            printf("\n  Iterations:   %7ld", ctx->iter);
+            printf("\n  f(x) calls:   %7ld", ctx->fcnt);
+            printf("\n  ∇f(x) calls:  %7ld", ctx->gcnt);
+            printf("\n  P_Ω(x) calls: %7ld", ctx->pcnt);
         }
-    } else if (ctx->iter >= ctx->maxit) {
-        ctx->status = CSPG_TOO_MANY_ITERATIONS;
-        if (ctx->verb) {
-            printf("\n Flag of SPG: Maximum of iterations reached.\n");
-        }
-    } else {
-        ctx->status = CSPG_TOO_MANY_EVALUATIONS;
-        if (ctx->verb) {
-            printf("\n Flag of SPG: Maximum of functional evaluations reached.\n");
-        }
+        printf("\n\n");
     }
 }
 
