@@ -100,52 +100,62 @@ typedef void cspg_projection(long n, double x[], int* inform, void* data);
 typedef void cspg_observer(cspg_context* ctx, void* data);
 
 struct cspg_context_ {
-    long m;
-    long n;
-    cspg_objective* func;
-    void* func_data;
-    cspg_gradient* grad;
-    void* grad_data;
-    cspg_projection* proj;
-    void* proj_data;
-    cspg_observer* obsv;
-    void* obsv_data;
+    // Memorized functional values
+    long    m;      ///< Number of memorized functional values
+    double* lastfv; ///< Vector of memorized functional values
 
-    double* lastfv;
-    double* x;
-    double f;
-    double* g;
-    double* gp;
-    double gpsupn;
+    // Current variables
+    long    n;      ///< Number of variables
+    double* x;      ///< Current point
+    double  f;      ///< Objective function at current point
+    double* g;      ///< Gradient at current point
+    double* gp;     ///< Projected gradient
+    double  gpsupn; ///< Sup-norm of projected gradient
 
-    double* xbest;
-    double fbest;
+    // Candidate solution
+    double* xbest; ///< Best solution
+    double  fbest; ///< Objective function at best solution
 
-    double alpha;
-    double lambda;
-    double* xnew;
-    double fnew;
-    double* gnew;
+    // New iterate found by the line-search
+    double* xnew;  ///< Trial point
+    double  fnew;  ///< Objective function at trial point
+    double* gnew;  ///< Gradient at trial point
 
-    double* d;
+    // Line-search
+    double* d;      ///< Search direction
+    double  lambda; ///< Spectral step length
+    double  alpha;  ///< Backtracking step length
+    double  lmin;   ///< Lower bound for lambda, 0 < lmin < 1
+    double  lmax;   ///< Upper bound for lambda, 1 < lmax < +∞
+    double  gamma;  ///< Parameter for Armijo's criterion
+    double  sigma1; ///< Lower absolute threshold for alpha
+    double  sigma2; ///< Upper relative threshold for alpha
 
-    double lmin;
-    double lmax;
-    double gamma;
-    double sigma1;
-    double sigma2;
+    // Stopping criteria
+    long   maxit;  ///< Maximum number of iterations
+    long   maxfc;  ///< Maximum number of functional evaluations
+    double epsopt; ///< Threshold for the sup-norm of the projected gradient
 
-    long maxit;
-    long maxfc;
-    double epsopt;
+    // Counters
+    int  verb;
+    long iter; ///< Number of iterations
+    long fcnt; ///< Number of objective function calls
+    long gcnt; ///< Number of gradient calls
+    long pcnt; ///< Number of projections
 
-    int verb;
-    long iter;
-    long fcnt;
-    long gcnt;
-    long pcnt;
-    cspg_status status; // algorithm status
-    int inform; // code returned by user defined function (func, grad, or proj)
+    // Callbacks
+    cspg_objective*  func;      ///< Objective function
+    void*            func_data; ///< Anything needed by the objective function
+    cspg_gradient*   grad;      ///< Gradient of the objective function
+    void*            grad_data; ///< Anything needed by the gradient
+    cspg_projection* proj;      ///< Projection onto the feasible set
+    void*            proj_data; ///< Anything needed by the projection
+    cspg_observer*   obsv;      ///< Observer
+    void*            obsv_data; ///< Anything needed by the observer
+
+    // Algorithm status
+    cspg_status status; ///< Algorithm status
+    int inform;         ///< Code returned by user defined function (func, grad, or proj)
 };
 
 /**
