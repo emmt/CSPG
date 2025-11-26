@@ -1,13 +1,13 @@
 /*
-  * This file is part of CSPG, a C implementation of the "Spectral Projected Gradient"
-  * method of E.G. Birgin, J.M. Martinez and M. Raydan.
-  *
-  * This code is released under the MIT License and is freely available at
-  * https://github.com/emmt/CSPG/
-  *
-  * The original code by the authors of the method can be found at the TANGO Project web
-  * page (www.ime.usp.br/~egbirgin/tango/).
-  */
+ * This file is part of CSPG, a C implementation of the "Spectral Projected Gradient"
+ * method of E.G. Birgin, J.M. Martinez and M. Raydan.
+ *
+ * This code is released under the MIT License and is freely available at
+ * https://github.com/emmt/CSPG/
+ *
+ * The original code by the authors of the method can be found at the TANGO Project web
+ * page (www.ime.usp.br/~egbirgin/tango/).
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -40,7 +40,7 @@ static inline double clamp(double x, double lo, double hi)
 }
 #endif
 
-/* Copy `src` into `dst`. */
+// Copy `src` into `dst`.
 static void copy(long n, double dst[], const double src[])
 {
     for (long i = 0; i < n; ++i) {
@@ -48,15 +48,15 @@ static void copy(long n, double dst[], const double src[])
     }
 }
 
-/* Compute line-search trial: dst[i] = x[i] + alpha*d[i] (for all i). */
-static void step(long n, double dst[], const double x[], double alpha, const double d[])
+// Compute: dst[i] = x[i] + beta*y[i] (for all i).
+static void xpby(long n, double dst[], const double x[], double beta, const double y[])
 {
     for (long i = 0; i < n; ++i) {
-        dst[i] = x[i] + alpha*d[i];
+        dst[i] = x[i] + beta*y[i];
     }
 }
 
-/* Return the maximal value in vector `x` of length `n`. */
+// Return the maximal value in vector `x` of length `n`.
 static double maximum(long n, const double x[])
 {
     double xmax = x[0];
@@ -66,7 +66,7 @@ static double maximum(long n, const double x[])
     return xmax;
 }
 
-/* Compute the scalar product ⟨x,y⟩ of the vectors `x` and `y` if length `n`. */
+// Compute the scalar product ⟨x,y⟩ of the vectors `x` and `y` if length `n`.
 static double inner(long n, const double x[], const double y[])
 {
     double s = 0.0;
@@ -76,73 +76,51 @@ static double inner(long n, const double x[], const double y[])
     return s;
 }
 
-/* Perform the non-monotone line search. */
+// Perform the non-monotone line search.
 static void linesearch(cspg_context* ctx);
 
-/* Call objective function callback. Return non-zero on error. */
+// Call objective function callback. Return non-zero on error.
 static int compute_objective(cspg_context* ctx, const double x[], double* f)
 {
     ctx->inform = 0;
     ctx->func(ctx->n, x, f, &ctx->inform, ctx->func_data);
     if (ctx->inform != 0) {
-       ctx->status = -90;
-       return -1;
-   }
-   ++ctx->fcnt;
-   return 0;
+        ctx->status = CSPG_FUNC_ERROR;
+        return -1;
+    }
+    ++ctx->fcnt;
+    return 0;
 }
 
-/* Call gradient callback. Return non-zero on error. */
+// Call gradient callback. Return non-zero on error.
 static int compute_gradient(cspg_context* ctx, const double x[], double g[])
 {
     ctx->inform = 0;
     ctx->grad(ctx->n, x, g, &ctx->inform, ctx->grad_data);
     if (ctx->inform != 0) {
-       ctx->status = -91;
-       return -1;
-   }
-   ++ctx->gcnt;
-   return 0;
+        ctx->status = CSPG_GRAD_ERROR;
+        return -1;
+    }
+    ++ctx->gcnt;
+    return 0;
 }
 
-/* Call projection callback. Do nothing if callback is `NULL`. Return non-zero on error. */
+// Call projection callback. Do nothing if callback is `NULL`. Return non-zero on error.
 static int compute_projection(cspg_context* ctx, double x[])
 {
     ctx->inform = 0;
     if (ctx->proj != NULL) {
         ctx->proj(ctx->n, x, &ctx->inform, ctx->proj_data);
         if (ctx->inform != 0) {
-            ctx->status = -92;
+            ctx->status = CSPG_PROJ_ERROR;
             return -1;
         }
         ++ctx->pcnt;
     }
-   return 0;
-}
-
-/* Compute the continuous-project-gradient and its sup-norm. */
-static int project_gradient(cspg_context* ctx)
-{
-    long n = ctx->n;
-    const double* x = ctx->x;
-    const double* g = ctx->g;
-    double* gp = ctx->gp;
-    for (long i = 0; i < n; ++i) {
-        gp[i] = x[i] - g[i];
-    }
-    if (compute_projection(ctx, gp) != 0) {
-        return -1;
-    }
-    double nrm = 0.0;
-    for (long i = 0; i < n; ++i) {
-        gp[i] -= x[i];
-        nrm = max(nrm, fabs(gp[i]));
-    }
-    ctx->gpsupn = nrm;
     return 0;
 }
 
-/* Simple observer that can be used to print iterates. */
+// Simple observer that can be used to print iterates.
 static void print_iter(cspg_context* ctx, void* data)
 {
     FILE* out = data;
@@ -150,6 +128,32 @@ static void print_iter(cspg_context* ctx, void* data)
         fputs("\n ITER\t F\t\t GPSUPNORM\n", out);
     }
     fprintf(out, " %ld\t %e\t %e\n", ctx->iter, ctx->f, ctx->gpsupn);
+}
+
+const char* cspg_reason(cspg_status status)
+{
+    switch (status) {
+    case CSPG_PROJ_ERROR:
+        return "Error in user defined projection onto the feasible set";
+    case CSPG_GRAD_ERROR:
+        return "Error in user defined gradient of the objective function";
+    case CSPG_FUNC_ERROR:
+        return "Error in user defined objective function";
+    case CSPG_VALUE_ERROR:
+        return "Unexpected value computed by algorithm";
+    case CSPG_SEARCHING:
+        return "Work in progress";
+    case CSPG_CONVERGENCE:
+        return "Algorithm converged";
+    case CSPG_TOO_MANY_ITERATIONS:
+        return "Maximum of iterations reached";
+    case CSPG_TOO_MANY_EVALUATIONS:
+        return "Maximum of functional evaluations reached";
+    case CSPG_ROUNDING_ERRORS:
+        return "Rounding errors prevent progress";
+    default:
+        return "Unknown algorithm status";
+    }
 }
 
 cspg_context* cspg_context_create(long m, long n)
@@ -272,70 +276,71 @@ void cspg(cspg_objective *func,
           int *status,
           int *inform)
 {
-   cspg_context* ctx = cspg_context_create(m, n);
-   if (ctx == NULL) {
-       return;
-   }
-   ctx->func = func; ctx->func_data = func_data;
-   ctx->grad = grad; ctx->grad_data = grad_data;
-   ctx->proj = proj; ctx->proj_data = proj_data;
-   if (obsv != NULL) {
-       ctx->obsv = obsv;
-       ctx->obsv_data = obsv_data;
-   } else if (verb >= 2) {
-       ctx->obsv = print_iter;
-       ctx->obsv_data = stdout;
-   }
-   ctx->maxit = maxit;
-   ctx->maxfc = maxfc;
-   ctx->verb = verb;
-   ctx->x = x;
-   ctx->epsopt = epsopt;
-   cspg_solve(ctx);
-   if (f != NULL) {
-       *f = ctx->f;
-   }
-   if (gpsupn != NULL) {
-       *gpsupn = ctx->gpsupn;
-   }
-   if (iter != NULL) {
-       *iter = ctx->iter;
-   }
-   if (fcnt != NULL) {
-       *fcnt = ctx->fcnt;
-   }
-   if (gcnt != NULL) {
-       *gcnt = ctx->gcnt;
-   }
-   if (pcnt != NULL) {
-       *pcnt = ctx->pcnt;
-   }
-   if (status != NULL) {
-       *status = ctx->status;
-   }
-   if (status != NULL) {
-       *status = ctx->status;
-   }
-   if (inform != NULL) {
-       *inform = ctx->inform;
-   }
-   cspg_context_destroy(ctx);
+    cspg_context* ctx = cspg_context_create(m, n);
+    if (ctx == NULL) {
+        return;
+    }
+    ctx->func = func; ctx->func_data = func_data;
+    ctx->grad = grad; ctx->grad_data = grad_data;
+    ctx->proj = proj; ctx->proj_data = proj_data;
+    if (obsv != NULL) {
+        ctx->obsv = obsv;
+        ctx->obsv_data = obsv_data;
+    } else if (verb >= 2) {
+        ctx->obsv = print_iter;
+        ctx->obsv_data = stdout;
+    }
+    ctx->maxit = maxit;
+    ctx->maxfc = maxfc;
+    ctx->verb = verb;
+    ctx->x = x;
+    ctx->epsopt = epsopt;
+    cspg_solve(ctx);
+    if (f != NULL) {
+        *f = ctx->f;
+    }
+    if (gpsupn != NULL) {
+        *gpsupn = ctx->gpsupn;
+    }
+    if (iter != NULL) {
+        *iter = ctx->iter;
+    }
+    if (fcnt != NULL) {
+        *fcnt = ctx->fcnt;
+    }
+    if (gcnt != NULL) {
+        *gcnt = ctx->gcnt;
+    }
+    if (pcnt != NULL) {
+        *pcnt = ctx->pcnt;
+    }
+    if (status != NULL) {
+        *status = ctx->status;
+    }
+    if (inform != NULL) {
+        *inform = ctx->inform;
+    }
+    cspg_context_destroy(ctx);
 }
 
 void cspg_solve(cspg_context* ctx)
 {
+    // Retrieve problem sizes.
     long m = ctx->m;
     long n = ctx->n;
 
-    /* Reset counters and state. */
+    // Reset counters, state, and memorized function values for the non-monotone line search.
     ctx->fcnt = 0;
     ctx->gcnt = 0;
     ctx->pcnt = 0;
     ctx->iter = 0;
     ctx->status = CSPG_SEARCHING;
     ctx->inform = 0;
+    for (long i = 0; i < m; ++i) {
+        ctx->lastfv[i] = -INFINITY;
+    }
 
-    /* Print problem information */
+    // Print problem information
     if (ctx->verb) {
         fputs("============================================================================\n"
               " This is the SPECTRAL PROJECTED GRADIENT (SPG) for convex-constrained       \n"
@@ -351,193 +356,196 @@ void cspg_solve(cspg_context* ctx)
         fputs(" Entry to SPG.\n", stdout);
     }
 
-   /* Project initial guess and compute function and gradient at this initial feasible
-      point. */
-   if (compute_projection(ctx, ctx->x) != 0) {
-       goto done;
-   }
-   if (compute_objective(ctx, ctx->x, &ctx->f) != 0) {
-       goto done;
-   }
-   if (compute_gradient(ctx, ctx->x, ctx->g) != 0) {
-       goto done;
-   }
+    // Project initial guess and compute function and gradient at this initial feasible
+    // point.
+    if (compute_projection(ctx, ctx->x) != 0) {
+        goto done;
+    }
+    if (compute_objective(ctx, ctx->x, &ctx->f) != 0) {
+        goto done;
+    }
+    if (compute_gradient(ctx, ctx->x, ctx->g) != 0) {
+        goto done;
+    }
 
-   /* Store functional value for the non-monotone line search. */
-   for (long i = 0; i < m; ++i) {
-      ctx->lastfv[i] = ctx->f;
-   }
+    // Main loop.
+    long best_fcnt = -1;
+    while (1) {
+        // Store best solution and functional value.
+        if (ctx->iter < 1 || ctx->f < ctx->fbest) {
+            ctx->fbest = ctx->f;
+            copy(ctx->n, ctx->xbest, ctx->x);
+            best_fcnt = ctx->fcnt;
+        }
 
-   while (1) {
-       /* Compute continuous-project-gradient and its sup-norm */
-       if (project_gradient(ctx) != 0) {
-           goto done;
-       }
+        // Compute continuous-project-gradient and its sup-norm.
+        for (long i = 0; i < n; ++i) {
+            ctx->gp[i] = ctx->x[i] - ctx->g[i];
+        }
+        if (compute_projection(ctx, ctx->gp) != 0) {
+            goto done;
+        }
+        double nrm = 0.0;
+        for (long i = 0; i < n; ++i) {
+            ctx->gp[i] -= ctx->x[i];
+            nrm = max(nrm, fabs(ctx->gp[i]));
+        }
+        ctx->gpsupn = nrm;
 
-       /* Store best solution and functional value. */
-       if (ctx->iter < 1 || ctx->f < ctx->fbest) {
-           ctx->fbest = ctx->f;
-           copy(ctx->n, ctx->xbest, ctx->x);
-       }
+        // Check stopping criteria.
+        if (ctx->gpsupn <= 0.0 || ctx->gpsupn <= ctx->epsopt || isnan(ctx->gpsupn)) {
+            ctx->status = (ctx->gpsupn >= 0.0 ? CSPG_CONVERGENCE : CSPG_VALUE_ERROR);
+        } else if (ctx->iter >= ctx->maxit) {
+            ctx->status = CSPG_TOO_MANY_ITERATIONS;
+        } else if (ctx->fcnt >= ctx->maxfc) {
+            ctx->status = CSPG_TOO_MANY_EVALUATIONS;
+        }
 
-       /* Check stopping criteria. */
-       if (ctx->gpsupn <= 0.0 || ctx->gpsupn <= ctx->epsopt || isnan(ctx->gpsupn)) {
-           ctx->status = (ctx->gpsupn >= 0.0 ? CSPG_CONVERGENCE : CSPG_VALUE_ERROR);
-       } else if (ctx->iter >= ctx->maxit) {
-           ctx->status = CSPG_TOO_MANY_ITERATIONS;
-       } else if (ctx->fcnt >= ctx->maxfc) {
-           ctx->status = CSPG_TOO_MANY_EVALUATIONS;
-       }
+        // Call observer if any.
+        if (ctx->obsv != NULL) {
+            ctx->obsv(ctx, ctx->obsv_data);
+        }
 
-       /* Print iteration information. */
-       if (ctx->obsv != NULL) {
-           ctx->obsv(ctx, ctx->obsv_data);
-       }
+        // Stop algorithm if requested.
+        if (ctx->status != CSPG_SEARCHING) {
+            break;
+        }
 
-       /* Stop algorithm if requested. */
-       if (ctx->status != CSPG_SEARCHING) {
-           break;
-       }
+        if (ctx->iter < 1) {
+            // Set initial step-length knowing that the sup-norm of the projected gradient
+            // is strictly positive.
+            ctx->lambda = min(ctx->lmax, max(ctx->lmin, 1.0/ctx->gpsupn));
+        }
 
-       if (ctx->iter < 1) {
-           /* Initial step-length, we know that the sup-norm of the projected gradient
-              is strictly positive. */
-   if (ctx->gpsupn > 0.0) {
-       ctx->lambda = min(ctx->lmax, max(ctx->lmin, 1.0/ctx->gpsupn));
-   } else {
-       ctx->lambda = 0.0; // TODO convergence?
-   }
-       }
+        // Save functional value for the non-monotone line search.
+        ctx->lastfv[(ctx->iter) % ctx->m] = ctx->f;
 
-       /* Compute first trial for line-search and call non-monotone line-search method. */
-       step(ctx->n, ctx->xnew, ctx->x, -ctx->lambda, ctx->g);
-       if (compute_projection(ctx, ctx->xnew) != 0) {
-           goto done;
-       }
-       linesearch(ctx);
-       if (ctx->status != 0) goto done;
+        // Compute first trial point for line-search.
+        xpby(ctx->n, ctx->xnew, ctx->x, -ctx->lambda, ctx->g);
+        if (compute_projection(ctx, ctx->xnew) != 0) {
+            goto done;
+        }
 
-       /* Set new functional value and save it for the non-monotone line search */
-       ctx->f = ctx->fnew;
-       ctx->lastfv[(ctx->iter) % ctx->m] = ctx->f;
+        // Call non-monotone line-search method.
+        linesearch(ctx);
+        if (ctx->status != CSPG_SEARCHING) {
+            // Line-search failed.
+            if (ctx->fcnt > best_fcnt && ctx->fnew < ctx->fbest) {
+                // Some improvement achieved, update the best solution, pretend an ultimate
+                // iteration has been done, and call observer if any.
+                ctx->fbest = ctx->fnew;
+                copy(ctx->n, ctx->xbest, ctx->xnew);
+                ctx->iter += 1;
+                if (ctx->obsv != NULL) {
+                    ctx->obsv(ctx, ctx->obsv_data);
+                }
+            }
+            goto done;
+        }
 
-       /* Gradient at the new iterate */
-       if (compute_gradient(ctx, ctx->xnew, ctx->gnew) != 0) {
-           goto done;
-       }
+        // Compute the gradient at the new iterate produced by the line-search.
+        if (compute_gradient(ctx, ctx->xnew, ctx->gnew) != 0) {
+            goto done;
+        }
 
-       /* Compute sts = ⟨s,s⟩, sty = ⟨s,y⟩ with s = xnew - x and y = gnew - g. Compute the
-          continuous-projected-gradient and its sup-norm. */
-       double sts = 0.0;
-       double sty = 0.0;
-       for (long i = 0; i < n; ++i) {
-           double s_i  = ctx->xnew[i] - ctx->x[i];
-           double y_i  = ctx->gnew[i] - ctx->g[i];
-           sts  += s_i*s_i;
-           sty  += s_i*y_i;
-           ctx->x[i]  = ctx->xnew[i];
-           ctx->g[i]  = ctx->gnew[i];
-       }
-       if (project_gradient(ctx) != 0) {
-           goto done;
-       }
-
-       /* Spectral steplength */
-       if (sty > 0.0) {
-           ctx->lambda = max(ctx->lmin, min(sts/sty, ctx->lmax));
-       } else {
-           ctx->lambda = ctx->lmax;
-       }
-       /* Iteration */
-       ++ctx->iter;
-
-
-
-   }
-
-   /* ==================================================================
-      End of main loop
-      ================================================================== */
+        // Compute sts = ⟨s,s⟩, sty = ⟨s,y⟩ with s = xnew - x and y = gnew - g, update the
+        // iterate, and compute the next spectral step-length.
+        double sts = 0.0;
+        double sty = 0.0;
+        for (long i = 0; i < n; ++i) {
+            double s_i = ctx->xnew[i] - ctx->x[i];
+            double y_i = ctx->gnew[i] - ctx->g[i];
+            sts += s_i*s_i;
+            sty += s_i*y_i;
+            ctx->x[i] = ctx->xnew[i];
+            ctx->g[i] = ctx->gnew[i];
+        }
+        if (sty > 0.0) {
+            ctx->lambda = max(ctx->lmin, min(sts/sty, ctx->lmax));
+        } else {
+            ctx->lambda = ctx->lmax;
+        }
+        ctx->f = ctx->fnew;
+        ++ctx->iter;
+    }
 
  done:
-   if (ctx->iter > 0) {
-       /* Finish returning the best point TODO avoid copy if x il already best */
-       ctx->f = ctx->fbest;
-       copy(ctx->n, ctx->x, ctx->xbest);
-   }
-   /* Write statistics */
-   if (ctx->verb) {
-       printf("\n");
-       printf(" Number of variables                : %ld\n", ctx->n);
-       printf(" Number of iterations               : %ld\n", ctx->iter);
-       printf(" Number of functional evaluations   : %ld\n", ctx->fcnt);
-       printf(" Number of gradient evaluations     : %ld\n", ctx->gcnt);
-       printf(" Number of projections              : %ld\n", ctx->pcnt);
-       printf(" Objective function value           : %e\n",  ctx->fbest);
-       printf(" Sup-norm of the projected gradient : %e\n", ctx->gpsupn);
-   }
+    if (ctx->iter > 0 && ctx->fbest < ctx->f) {
+        // Copy best point TODO not needed?
+        ctx->f = ctx->fbest;
+        copy(ctx->n, ctx->x, ctx->xbest);
+    }
+    // Write statistics
+    if (ctx->verb) {
+        printf("\n");
+        printf(" Number of variables                : %ld\n", ctx->n);
+        printf(" Number of iterations               : %ld\n", ctx->iter);
+        printf(" Number of functional evaluations   : %ld\n", ctx->fcnt);
+        printf(" Number of gradient evaluations     : %ld\n", ctx->gcnt);
+        printf(" Number of projections              : %ld\n", ctx->pcnt);
+        printf(" Objective function value           : %e\n",  ctx->fbest);
+        printf(" Sup-norm of the projected gradient : %e\n", ctx->gpsupn);
+    }
 
-   /* Termination flag TODO set in loop */
-   if (ctx->gpsupn <= ctx->epsopt ) {
-       ctx->status = 0;
-       if (ctx->verb) {
-           printf("\n Flag of SPG: Solution was found.\n");
-       }
-   } else if (ctx->iter >= ctx->maxit) {
-       ctx->status = 1;
-       if (ctx->verb) {
-           printf("\n Flag of SPG: Maximum of iterations reached.\n");
-       }
-   } else {
-       ctx->status = 2;
-       if (ctx->verb) {
-           printf("\n Flag of SPG: Maximum of functional evaluations reached.\n");
-       }
-   }
+    // Termination flag TODO set in loop
+    if (ctx->gpsupn <= ctx->epsopt ) {
+        ctx->status = CSPG_CONVERGENCE;
+        if (ctx->verb) {
+            printf("\n Flag of SPG: Solution was found.\n");
+        }
+    } else if (ctx->iter >= ctx->maxit) {
+        ctx->status = CSPG_TOO_MANY_ITERATIONS;
+        if (ctx->verb) {
+            printf("\n Flag of SPG: Maximum of iterations reached.\n");
+        }
+    } else {
+        ctx->status = CSPG_TOO_MANY_EVALUATIONS;
+        if (ctx->verb) {
+            printf("\n Flag of SPG: Maximum of functional evaluations reached.\n");
+        }
+    }
 }
 
-/* Nonmonotone line search with safeguarded quadratic interpolation */
+// Nonmonotone line search with safeguarded quadratic interpolation
 static void linesearch(cspg_context* ctx)
 {
-    /* Compute the search direction given the feasible variables `x` at the start of
-       the line-search and first feasible variables to try in `xnew`. */
+    // Compute the search direction given `x`, the feasible variables at the start of the
+    // line-search, and `xnew` the first feasible point to try. TODO check for rounding errors.
     long n = ctx->n;
     for (long i = 0; i < n; ++i) {
         ctx->d[i] = ctx->xnew[i] - ctx->x[i];
     }
-    /* Compute the parameters of the Armijo's stopping criterion. */
+    ctx->alpha = 1.0; // corresponding step-length
+    // Compute the parameters of the Armijo's stopping criterion. TODO check for rounding errors.
     double gtd = inner(ctx->n, ctx->g, ctx->d);
     double fmax = maximum(ctx->m, ctx->lastfv);
-    /* Adjust the step length until one of the stopping criteria hold. */
-    ctx->alpha = 1.0;
+    // Adjust the step length until one of the stopping criteria hold.
     while (1) {
-        /* Evaluate objective function at trial point. */
+        // Evaluate objective function at trial point.
         if (compute_objective(ctx, ctx->xnew, &ctx->fnew) != 0) {
             break;
         }
-        /* Check for stopping criteria. */
+        // Check for stopping criteria.
         if (ctx->fnew <= fmax + ctx->gamma*ctx->alpha*gtd) {
-            ctx->status = 0;
+            break;
+        } else if (ctx->fcnt >= ctx->maxfc) {
+            ctx->status = CSPG_TOO_MANY_EVALUATIONS;
             break;
         }
-        if (ctx->fcnt >= ctx->maxfc) {
-            ctx->status = 2;
-            break;
-        }
-        /* Reduce the step length by a safeguarded quadratic interpolation. */
+        // Reduce the step length by a safeguarded quadratic interpolation. TODO check for rounding errors.
         if (ctx->alpha <= ctx->sigma1) {
             ctx->alpha /= 2.0;
         } else {
             double num = -gtd*ctx->alpha*ctx->alpha;
             double den = 2.0*(ctx->fnew - ctx->f - ctx->alpha*gtd);
-            double atmp = num/den;
-            if (atmp >= ctx->sigma1 && atmp <= ctx->sigma2*ctx->alpha) {
-                ctx->alpha = atmp;
+            double tmp = num/den;
+            if (tmp >= ctx->sigma1 && tmp <= ctx->sigma2*ctx->alpha) {
+                ctx->alpha = tmp;
             } else {
                 ctx->alpha /= 2.0;
             }
         }
-        /* Next trial */
-        step(ctx->n, ctx->xnew, ctx->x, ctx->alpha, ctx->d);
+        // Next trial.
+        xpby(ctx->n, ctx->xnew, ctx->x, ctx->alpha, ctx->d);
     }
 }

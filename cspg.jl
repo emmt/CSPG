@@ -167,7 +167,7 @@ function runtests1()
     end
 end
 
-function runtests(; m::Integer=100, maxit::Integer=2_000_000, maxfc::Integer=2maxit,
+function runtests(; m::Integer=100, maxit::Integer=2_000_000, maxfc::Integer=4maxit,
                   orig::Bool=false)
     if orig
         println("===============================================================================")
@@ -235,13 +235,13 @@ function runtests(; m::Integer=100, maxit::Integer=2_000_000, maxfc::Integer=2ma
         t = time() - t0
         #length(x) == n || @warn "expecting $n variables, got $(length(x))"
         if orig
-            s = @sprintf("%8s %7d %7d %7d %16.8E %7.1E %7d %7.2f", name, length(r.x_best),
-                         r.iter, r.fcnt, r.f_best, r.gpsupn, r.status, t)
-            println(replace(s, r"([0-9])E([-+][0-9])" => s"\1D\2"))
+            str = @sprintf("%8s %7d %7d %7d %16.8E %7.1E %7d %7.2f", name, length(r.x_best),
+                           r.iter, r.fcnt, r.f_best, r.gpsupn, r.status - 1, t)
+            println(replace(str, r"([0-9])E([-+][0-9])" => s"\1D\2"))
         else
             @printf("%-10s %6d %9d %9d %9d %10.3f %11.3e %11.3e ", name, length(r.x_best),
                     r.iter, r.fcnt, r.gcnt, t, r.f_best, r.gpsupn)
-            printstyled(lpad(r.status, 6); color=(r.status == 0 ? :green : :red))
+            printstyled(lpad(r.status - 1, 6); color=(r.status == 1 ? :green : :red))
             println()
         end
     end

@@ -25,6 +25,11 @@ typedef enum {
 } cspg_status;
 
 /**
+ * Textual description of algorithm status.
+ */
+const char* cspg_reason(cspg_status status);
+
+/**
  * Structure storing all parameters, work-spaces, and results of the SPG algorithm.
  *
  * This structure is allocated and instantiated with default parameters by
