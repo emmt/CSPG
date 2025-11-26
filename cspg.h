@@ -1,27 +1,27 @@
 /*
-  * This file is part of CSPG, a C implementation of the "Spectral Projected Gradient"
-  * method of E.G. Birgin, J.M. Martinez and M. Raydan.
-  *
-  * This code is released under the MIT License and is freely available at
-  * https://github.com/emmt/CSPG/
-  *
-  * The original code by the authors of the method can be found at the TANGO Project web
-  * page (www.ime.usp.br/~egbirgin/tango/).
-  */
+ * This file is part of CSPG, a C implementation of the "Spectral Projected Gradient"
+ * method of E.G. Birgin, J.M. Martinez and M. Raydan.
+ *
+ * This code is released under the MIT License and is freely available at
+ * https://github.com/emmt/CSPG/
+ *
+ * The original code by the authors of the method can be found at the TANGO Project web
+ * page (www.ime.usp.br/~egbirgin/tango/).
+ */
 
 #ifndef CSPG_H_
 #define CSPG_H_ 1
 
 typedef enum {
-    CSPG_PROJ_ERROR           = -4, /* Error in projection callback */
-    CSPG_GRAD_ERROR           = -3, /* Error in gradient callback */
-    CSPG_FUNC_ERROR           = -2, /* Error in objective function callback */
-    CSPG_VALUE_ERROR          = -1, /* Unexpected value */
-    CSPG_SEARCHING            =  0, /* Work in progress */
-    CSPG_CONVERGENCE          =  1, /* Convergence in the sup-norm of the projected gradient */
-    CSPG_TOO_MANY_ITERATIONS  =  2, /* Maximum number of iterations exceeded */
-    CSPG_TOO_MANY_EVALUATIONS =  3, /* Maximum number of function evaluations exceeded */
-    CSPG_ROUNDING_ERRORS      =  4, /* Rounding errors prevent progress */
+    CSPG_PROJ_ERROR           = -5, /* Error in projection callback */
+    CSPG_GRAD_ERROR           = -4, /* Error in gradient callback */
+    CSPG_FUNC_ERROR           = -3, /* Error in objective function callback */
+    CSPG_VALUE_ERROR          = -2, /* Unexpected value */
+    CSPG_SEARCHING            = -1, /* Work in progress */
+    CSPG_CONVERGENCE          =  0, /* Convergence in the sup-norm of the projected gradient */
+    CSPG_TOO_MANY_ITERATIONS  =  1, /* Maximum number of iterations exceeded */
+    CSPG_TOO_MANY_EVALUATIONS =  2, /* Maximum number of function evaluations exceeded */
+    CSPG_ROUNDING_ERRORS      =  3, /* Rounding errors prevent progress */
 } cspg_status;
 
 /**

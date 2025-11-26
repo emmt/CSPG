@@ -1,15 +1,65 @@
+# This file is part of CSPG, a C implementation of the "Spectral Projected Gradient" method
+# of E.G. Birgin, J.M. Martinez and M. Raydan.
+#
+# This code is released under the MIT License and is freely available at
+# https://github.com/emmt/CSPG/
+#
+# The original code by the authors of the method can be found at the TANGO Project web page
+# (www.ime.usp.br/~egbirgin/tango/).
+
+"""
+
+Module `CSPG` is a Julia wrapper for CSPG, a C implementation of the *"Spectral Projected
+Gradient"* method of E.G. Birgin, J.M. Martinez and M. Raydan.
+
+"""
 module CSPG
 
 export cspg
 
+using CEnum
+using LinearAlgebra
 using Printf, CUTEst, NLPModels
 
 const libcspg = abspath(joinpath(@__DIR__, "libcspg.so"))
+
+@cenum Status::Cint begin
+    CSPG_PROJ_ERROR           = -5 # Error in projection callback
+    CSPG_GRAD_ERROR           = -4 # Error in gradient callback
+    CSPG_FUNC_ERROR           = -3 # Error in objective function callback
+    CSPG_VALUE_ERROR          = -2 # Unexpected value
+    CSPG_SEARCHING            = -1 # Work in progress
+    CSPG_CONVERGENCE          =  0 # Convergence in the sup-norm of the projected gradient
+    CSPG_TOO_MANY_ITERATIONS  =  1 # Maximum number of iterations exceeded
+    CSPG_TOO_MANY_EVALUATIONS =  2 # Maximum number of function evaluations exceeded
+    CSPG_ROUNDING_ERRORS      =  3 # Rounding errors prevent progress
+end
+
+Base.convert(::Type{Status}, x::Status) = x
+Base.convert(::Type{Status}, x::Integer) = Status(x)
+
+struct Result{T<:AbstractFloat,Xa<:AbstractArray}
+    x_best::Xa
+    f_best::T
+    gpsupn::T
+    iter::Int
+    fcnt::Int
+    gcnt::Int
+    pcnt::Int
+    status::Status
+    inform::Cint
+end
+
+LinearAlgebra.issuccess(status::Status) = status == CSPG_CONVERGENCE
+LinearAlgebra.issuccess(result::Result) = issuccess(result.status)
 
 struct Box{T,N,L<:AbstractArray{T,N},U<:AbstractArray{T,N}}
     lower::L
     upper::U
 end
+
+reason(status::Status) =
+    unsafe_string(@ccall libcspg.cspg_reason(status::Cint)::Ptr{UInt8})
 
 function _cspg(func, func_data, grad, grad_data, proj, proj_data, obsv, obsv_data,
                m, n, x, epsopt, maxit, maxfc, verb,
@@ -31,7 +81,7 @@ function _cspg(func, func_data, grad, grad_data, proj, proj_data, obsv, obsv_dat
                         fcnt::Ptr{Clong},
                         gcnt::Ptr{Clong},
                         pcnt::Ptr{Clong},
-                        status::Ptr{Cint},
+                        status::Ptr{Status},
                         inform::Ptr{Cint})::Cvoid
 end
 
@@ -62,18 +112,6 @@ function _proj(n::Clong, x_ptr::Ptr{Cdouble}, inform::Ptr{Cint}, proj_ptr::Ptr{C
     return nothing
 end
 
-struct Result{T<:AbstractFloat,Xa<:AbstractArray}
-    x_best::Xa
-    f_best::T
-    gpsupn::T
-    iter::Int
-    fcnt::Int
-    gcnt::Int
-    pcnt::Int
-    status::Cint
-    inform::Cint
-end
-
 function cspg(func, grad!, proj!, x0::AbstractArray;
               m::Integer = 100,
               epsopt::Real = 1e-5, maxit::Integer = 1000, maxfc::Integer = 2000,
@@ -84,7 +122,7 @@ function cspg(func, grad!, proj!, x0::AbstractArray;
     fcnt = Ref{Clong}(0)
     gcnt = Ref{Clong}(0)
     pcnt = Ref{Clong}(0)
-    status = Ref{Cint}(0)
+    status = Ref{Status}(0)
     inform = Ref{Cint}(0)
     x = Array{Cdouble}(undef, size(x0))
     copy!(x, x0)
@@ -139,7 +177,7 @@ function boxproj!(x::AbstractArray, l::AbstractArray, u::AbstractArray)
 end
 
 function runtests1()
-    println("Problem                 n     iter      fcnt      gcnt      time (s)    f(x)       ‖gp(x)‖ₒₒ")
+    println("Problem                 n     iter      fcnt      gcnt      time (s)    f(x)       ‖gp(x)‖₀₀")
     println("-------------------- ------ --------- --------- --------- ---------- ----------- -----------")
     for (name, n) in ("BDEXP" => 5000,
                       "EXPLIN" => 120,
@@ -176,7 +214,7 @@ function runtests(; m::Integer=100, maxit::Integer=2_000_000, maxfc::Integer=4ma
     else
         println("# julia> CSPG.runtests(; m=$m, maxit=$maxit, maxfc=$maxfc)")
         println()
-        println("Problem         n      iter      fcnt      gcnt   time (s)     f(x)      ‖gp(x)‖ₒₒ status")
+        println("Problem         n      iter      fcnt      gcnt   time (s)     f(x)      ‖gp(x)‖₀₀ status")
         println("---------- ------ --------- --------- --------- ---------- ----------- ----------- ------")
     end
     for (name, (n,iter,fcnt,f,gpsupn,sc,tm)) in (
@@ -236,12 +274,12 @@ function runtests(; m::Integer=100, maxit::Integer=2_000_000, maxfc::Integer=4ma
         #length(x) == n || @warn "expecting $n variables, got $(length(x))"
         if orig
             str = @sprintf("%8s %7d %7d %7d %16.8E %7.1E %7d %7.2f", name, length(r.x_best),
-                           r.iter, r.fcnt, r.f_best, r.gpsupn, r.status - 1, t)
+                           r.iter, r.fcnt, r.f_best, r.gpsupn, Integer(r.status), t)
             println(replace(str, r"([0-9])E([-+][0-9])" => s"\1D\2"))
         else
             @printf("%-10s %6d %9d %9d %9d %10.3f %11.3e %11.3e ", name, length(r.x_best),
                     r.iter, r.fcnt, r.gcnt, t, r.f_best, r.gpsupn)
-            printstyled(lpad(r.status - 1, 6); color=(r.status == 1 ? :green : :red))
+            printstyled(lpad(r.status, 6); color=(issuccess(r) ? :green : :red))
             println()
         end
     end
