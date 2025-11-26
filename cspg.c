@@ -190,11 +190,6 @@ cspg_context* cspg_context_create(long m, long n)
         cspg_context_destroy(ctx);
         return NULL;
     }
-    ctx->gp = (double*)malloc(n*sizeof(double));
-    if (ctx->gp == NULL) {
-        cspg_context_destroy(ctx);
-        return NULL;
-    }
     ctx->xbest = (double*)malloc(n*sizeof(double));
     if (ctx->xbest == NULL) {
         cspg_context_destroy(ctx);
@@ -236,10 +231,6 @@ void cspg_context_destroy(cspg_context* ctx)
     if (ctx->gnew != NULL) {
         free(ctx->gnew);
         ctx->gnew =  NULL;
-    }
-    if (ctx->gp != NULL) {
-        free(ctx->gp);
-        ctx->gp =  NULL;
     }
     if (ctx->xbest != NULL) {
         free(ctx->xbest);
@@ -380,15 +371,15 @@ void cspg_solve(cspg_context* ctx)
 
         // Compute continuous-project-gradient and its sup-norm.
         for (long i = 0; i < n; ++i) {
-            ctx->gp[i] = ctx->x[i] - ctx->g[i];
+            ctx->d[i] = ctx->x[i] - ctx->g[i];
         }
-        if (compute_projection(ctx, ctx->gp) != 0) {
+        if (compute_projection(ctx, ctx->d) != 0) {
             goto done;
         }
         double nrm = 0.0;
         for (long i = 0; i < n; ++i) {
-            ctx->gp[i] -= ctx->x[i];
-            nrm = max(nrm, fabs(ctx->gp[i]));
+            ctx->d[i] -= ctx->x[i];
+            nrm = max(nrm, fabs(ctx->d[i]));
         }
         ctx->gpsupn = nrm;
 

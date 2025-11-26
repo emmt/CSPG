@@ -32,4 +32,6 @@ Improvements of this implementation:
   the variables are always feasible when the objective function and its gradient are
   computed.
 
-* Minimal resources are allocated (e.g., no needs to allocate vectors `s` and `y`).
+* Minimal resources are allocated (e.g., no needs to allocate vectors `gp`, `s`, and `y`).
+  Memory requirements are only `(m + 6*n)*sizeof(double)` bytes with `m` the number of
+  memorized functional values and `n` the number of variables.

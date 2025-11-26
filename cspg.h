@@ -109,7 +109,6 @@ struct cspg_context_ {
     double* x;      ///< Current point
     double  f;      ///< Objective function at current point
     double* g;      ///< Gradient at current point
-    double* gp;     ///< Projected gradient
     double  gpsupn; ///< Sup-norm of projected gradient
 
     // Candidate solution
@@ -122,7 +121,7 @@ struct cspg_context_ {
     double* gnew;  ///< Gradient at trial point
 
     // Line-search
-    double* d;      ///< Search direction
+    double* d;      ///< Search direction or projected gradient
     double  lambda; ///< Spectral step length
     double  alpha;  ///< Backtracking step length
     double  lmin;   ///< Lower bound for lambda, 0 < lmin < 1
